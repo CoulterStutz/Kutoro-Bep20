@@ -1,7 +1,5 @@
 pragma solidity ^0.8.0;
 
-import 'Lottery.sol';
-
 contract Math {
     function Add(uint a, uint b) public pure returns (uint c) {
         c = a + b;
@@ -26,9 +24,9 @@ contract Math {
 
     }
 
-    function Precentage (uint a, uint b) public pure returns (uint c) {
-        uint d = a * b;
-        c = d / b;
+    function Precentage (uint a, uint b) public pure returns (uint d) {
+        d = b / a;
+        return d;
     }
 }
 
@@ -81,7 +79,7 @@ contract Owned{
     }
 }
 
-contract Kutoro is KutoroInterface, Math, Owned, Lottery {
+contract Kutoro is KutoroInterface, Math, Owned{
     string public symbol;
     string public  name;
     uint8 public decimals;
@@ -91,25 +89,55 @@ contract Kutoro is KutoroInterface, Math, Owned, Lottery {
     address authorized1;
     address authorized2;
     address authorized3;
-    address authorized4;
+
+    bool public isBillboardEnabled;
+    string public billboardMessage;
+    uint public billboardPrice;
 
     address payable faucetAddress;
+    uint faucetLimit;
+    uint public faucetPayout;
+    bool public isFaucetEnabled;
+
     address payable christmasAddress;
+    
+    uint faucetCut;
+    uint christmasCut;
+    uint remaining;
+
+    mapping(address => uint) balances;
+    mapping(address => mapping(address => uint)) allowed;
 
     constructor() {
-        symbol = "KTU";
-        name = "Kutoro";
+        symbol = "KTU1";
+        name = "Kutoro_Phase1";
         decimals = 0;
         _totalSupply = 100000000;
         _totalBurned = 0;
         balances[0xEf54Ca02be4D7628f11d3638E13CAD6D38f2bD52] = _totalSupply;
+
         authorized1 = 0xa693190103733280E23055BE70C838d9b6708b9a;
         authorized2 = 0xEf54Ca02be4D7628f11d3638E13CAD6D38f2bD52;
+        authorized3 = 0x3337B287EAC8Da085E0d90b1C7A78C005986fe03;
+
+        isBillboardEnabled = true;
+        billboardMessage = "With Love From Kutoro <3";
+        billboardPrice = 1;
 
         faucetAddress = payable(0xD0872B948CD0C32Add3F1EA62086Caa61C2a6cCb);
         christmasAddress = payable(0x82F58B7451E4c11b29d27416E39E9373d9CB6E67);
 
+        faucetLimit = 1;
+        faucetPayout = 1;
+
+        /*
+            The cuts are set at what the total should be devided at. For example, 100/faucetcut= 25. That is 25 that will be sent to the faucet
+        */
+        faucetCut = 4;
+        christmasCut = 4;
+        remaining = 2;
     }
+
 
     function totalSupply() public override view returns (uint) {
         return _totalSupply - balances[address(0)];
@@ -123,6 +151,18 @@ contract Kutoro is KutoroInterface, Math, Owned, Lottery {
         return balances[wallet];
     }
 
+    function faucetBalance() public view returns (uint){
+        return balances[faucetAddress];
+    }
+
+    function ChristmasBalance() public view returns (uint){
+        return balances[christmasAddress];
+    }
+
+    function Billboard() public view returns (string memory){
+        return billboardMessage;
+    }
+
     function Burn(uint tokens) public returns(bool success){
         require(balances[msg.sender] >= tokens);
 
@@ -130,6 +170,65 @@ contract Kutoro is KutoroInterface, Math, Owned, Lottery {
 
         _totalSupply = Sub(_totalSupply, tokens);
         _totalBurned = Add(_totalBurned, tokens);
+        return true;
+    }
+
+    function communityTransfer(uint tokens, uint account, address to) public KutoNoYouDont returns (bool success){
+        if(account == 1){
+            uint a = tokens / 1;
+            require(balances[faucetAddress] >= a);
+            balances[faucetAddress] = Sub(balances[faucetAddress], a);
+
+            balances[to] = Add(balances[to], a);
+            emit Transfer(faucetAddress, to, a);
+            return true;
+        } else if (account == 2){
+            uint a = tokens / 1;
+            require(balances[christmasAddress] >= a);
+            balances[christmasAddress] = Sub(balances[christmasAddress], a);
+
+            balances[to] = Add(balances[to], a);
+            emit Transfer(christmasAddress, to, a);
+            return true;
+        } else if (account == 12){
+            uint a = tokens / 2;
+            require(balances[christmasAddress] >= a);
+            require(balances[faucetAddress] >= a);
+            balances[christmasAddress] = Sub(balances[christmasAddress], a);
+            balances[faucetAddress] = Sub(balances[faucetAddress], a);
+            
+            balances[to] = Add(balances[to], tokens);
+            emit Transfer(faucetAddress, to, a);
+            emit Transfer(christmasAddress, to, a);
+            return true;
+        } else {
+            revert("Invalid Account Selected!");
+        }
+    }
+
+    function communityBurn(uint tokens) public KutoNoYouDont returns (bool success){
+        uint a = tokens / 2;
+
+        require(balances[christmasAddress] >= a);
+        require(balances[faucetAddress] >= a);
+
+        balances[christmasAddress] = Sub(balances[christmasAddress], a);
+        balances[faucetAddress] = Sub(balances[faucetAddress], a);
+        return true;
+    }
+
+    function communityMint(uint tokens) public KutoNoYouDont returns (bool success){
+        _totalSupply = Add(_totalSupply, tokens);
+
+        uint faucetC = Precentage(faucetCut, tokens);
+        uint ChristmasC = Precentage(christmasCut, tokens);
+        uint rem = Precentage(remaining, tokens);
+
+        balances[christmasAddress] = Add(balances[christmasAddress], faucetC);
+        balances[faucetAddress] = Add(balances[faucetAddress], ChristmasC);
+        balances[msg.sender] = Add(balances[msg.sender], rem);
+        
+        return true;
     }
 
     function transfer(address to, uint tokens) public override returns (bool success) {
@@ -139,20 +238,78 @@ contract Kutoro is KutoroInterface, Math, Owned, Lottery {
         return true;
     }
 
-    fuc
+    function useFaucet() public faucet returns (bool success){
+        balances[msg.sender] = Add(balances[msg.sender], faucetPayout);
+        balances[faucetAddress] = Sub(balances[faucetAddress], faucetPayout);
+        return true;
+    }
 
+    function setBillboard(string memory message) public returns (bool success){
+        require(isBillboardEnabled == true);
+        require(balances[msg.sender] == billboardPrice);
+        
+        balances[msg.sender] = Sub(balances[msg.sender], billboardPrice);
+        billboardMessage = message;
+    }
 
+    function configureBillboard(bool toggle, string memory message, uint price) public KutoNoYouDont returns (bool success){
+        isBillboardEnabled = toggle;
+        billboardMessage = message;
+        billboardPrice = price;
+    }
+
+    function configureFaucet(bool enabled, uint price, uint limit) public KutoNoYouDont returns (bool success){
+        isFaucetEnabled = enabled;
+        faucetPayout = price;
+        faucetLimit = limit;
+        return true;
+    }
+
+    function toggleBillboard(bool enabled) public KutoNoYouDont returns (bool success){
+        isBillboardEnabled = enabled;
+    }
+
+    function setAuthorized(int slot, address address1) public KutoNoYouDont returns (bool success){
+        require(slot <= 3);
+        require(slot > 0);
+
+        if(slot == 1){
+            authorized1 = address1;
+            return true;
+        } else if(slot == 2){
+            authorized2 = address1;
+            return true;
+        } else if(slot == 3){
+            authorized3 = address1;
+            return true;
+        }
+    }
+
+    function setAllAuthorized(address address1, address address2, address address3) public KutoNoYouDont returns (bool success){
+        authorized1 = address1;
+        authorized2 = address2;
+        authorized3 = address3;
+
+        return true;
+    }
 
     function transferAnyToken (address tokenAddress, uint tokens) public onlyOwner returns (bool success)  {
         transfer(owner, tokens);
         return KutoroInterface(tokenAddress).transfer(owner, tokens);
     }
 
+    modifier faucet{
+        require(isFaucetEnabled == true);
+        if(balances[faucetAddress] < faucetPayout){
+            revert("Please Refill The Faucet or Vote For A Community Mint");
+        }
+        _;
+    }
+
     modifier KutoNoYouDont{
         if(msg.sender == authorized1){
         } else if(msg.sender == authorized2){
         } else if(msg.sender == authorized3){
-        } else if(msg.sender == authorized4){
         } else{
             revert("Not Authorized");
         }
