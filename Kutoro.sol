@@ -28,6 +28,10 @@ contract Math {
         d = b / a;
         return d;
     }
+
+    function calculateVotes (uint tokens,uint voteToTokenRate) public pure returns (uint d){
+        d = tokens / voteToTokenRate;
+    }
 }
 
 //
@@ -45,12 +49,6 @@ abstract contract KutoroInterface{
 }
 
 
-
-/// "Borrowed" from MiniMeToken (thanks guys)
-
-abstract contract ApproveAndCallFallBack {
-    function receiveApproval(address from, uint256 tokens, address token, bytes memory data) virtual public;
-}
 
 contract Owned{
     address public owner;
@@ -80,6 +78,7 @@ contract Owned{
 }
 
 contract Kutoro is KutoroInterface, Math, Owned{
+    
     string public symbol;
     string public  name;
     uint8 public decimals;
@@ -105,8 +104,26 @@ contract Kutoro is KutoroInterface, Math, Owned{
     uint christmasCut;
     uint remaining;
 
+    bool public electionHappening;
+    uint public electionVotePrice;
+    string public electionTitle;
+    uint public voteToTokenRate;
+    address public ElectionRunner;
+
+    uint public option1Votes;
+    uint public option2Votes;
+    uint public totalVotes;
+
+    struct vote{
+        uint quantityofVotes;
+        uint tokensDelegated;
+        uint vote;
+    }
+
     mapping(address => uint) balances;
     mapping(address => mapping(address => uint)) allowed;
+    mapping (uint => mapping (address => uint)) mappedAccounts;
+    mapping(address => vote) voter;
 
     constructor() {
         symbol = "KTU1";
@@ -136,6 +153,15 @@ contract Kutoro is KutoroInterface, Math, Owned{
         faucetCut = 4;
         christmasCut = 4;
         remaining = 2;
+
+        electionHappening = false;
+        electionVotePrice = 1;
+        electionTitle = "Made With Love <3 Kutoro";
+        voteToTokenRate = 1;
+
+        option1Votes = 0;
+        option2Votes = 0;
+        totalVotes = 0;
     }
 
 
@@ -161,6 +187,18 @@ contract Kutoro is KutoroInterface, Math, Owned{
 
     function Billboard() public view returns (string memory){
         return billboardMessage;
+    }
+
+    function VoterStats(address t) public view returns (vote memory){
+        return voter[t];
+    }
+
+    function TotalVotes() public view returns (uint){
+        return totalVotes;
+    }
+
+    function merryChristmas() public view returns (bool success){
+        
     }
 
     function Burn(uint tokens) public returns(bool success){
@@ -217,7 +255,7 @@ contract Kutoro is KutoroInterface, Math, Owned{
         return true;
     }
 
-    function communityMint(uint tokens) public KutoNoYouDont returns (bool success){
+    function communityMint(uint tokens) public returns (bool success){
         _totalSupply = Add(_totalSupply, tokens);
 
         uint faucetC = Precentage(faucetCut, tokens);
@@ -267,6 +305,44 @@ contract Kutoro is KutoroInterface, Math, Owned{
 
     function toggleBillboard(bool enabled) public KutoNoYouDont returns (bool success){
         isBillboardEnabled = enabled;
+        return true;
+    }
+
+    function createElection(string memory title) public returns (bool success){
+        require(electionHappening == false);
+        electionTitle = title;
+        electionHappening = true;
+        ElectionRunner = msg.sender;
+    }
+
+    function Vote(uint choice, uint tokens) public election returns (bool success){
+        require(balances[msg.sender] >= tokens);
+        require(choice <= 2);
+        uint votes = calculateVotes(tokens, voteToTokenRate);
+
+        if(choice == 1){
+            option1Votes = Add(option1Votes, votes);
+        } else if(choice == 2){
+            option2Votes = Add(option2Votes, votes);
+        }
+        totalVotes = Add(totalVotes, votes);
+
+        voter[msg.sender].quantityofVotes = votes;
+        voter[msg.sender].tokensDelegated = tokens;
+        voter[msg.sender].vote = choice;
+        
+    }
+
+    function endElection() public election returns(bool success){
+        require(msg.sender == ElectionRunner);
+        require(electionHappening == true);
+
+        electionHappening = false;
+        electionTitle = "";
+    }
+
+    function withdrawlTokensFromElection() public returns (bool success){
+        
     }
 
     function setAuthorized(int slot, address address1) public KutoNoYouDont returns (bool success){
@@ -303,6 +379,12 @@ contract Kutoro is KutoroInterface, Math, Owned{
         if(balances[faucetAddress] < faucetPayout){
             revert("Please Refill The Faucet or Vote For A Community Mint");
         }
+        _;
+    }
+
+    modifier election{
+        require(electionHappening == true);
+        require(voter[msg.sender].quantityofVotes <= 0);
         _;
     }
 
