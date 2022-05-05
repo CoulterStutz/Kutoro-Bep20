@@ -107,22 +107,33 @@ contract Kutoro is KutoroInterface, Math, Owned{
     bool public electionHappening;
     uint public electionVotePrice;
     string public electionTitle;
-    uint public voteToTokenRate;
+    uint voteToTokenRate;
     address public ElectionRunner;
+    uint public electionReward;
 
     uint public option1Votes;
     uint public option2Votes;
     uint public totalVotes;
 
+    address donationAddress;
+
+    bool testnet;
+
     struct vote{
         uint quantityofVotes;
         uint tokensDelegated;
         uint vote;
+    
+    }
+    struct burner{
+        uint tokensBurned;
+        uint lastBurn;
+        uint largestBurn;
     }
 
     mapping(address => uint) balances;
     mapping(address => mapping(address => uint)) allowed;
-    mapping (uint => mapping (address => uint)) mappedAccounts;
+    mapping(address => burner) burning;
     mapping(address => vote) voter;
 
     constructor() {
@@ -135,7 +146,7 @@ contract Kutoro is KutoroInterface, Math, Owned{
 
         authorized1 = 0xa693190103733280E23055BE70C838d9b6708b9a;
         authorized2 = 0xEf54Ca02be4D7628f11d3638E13CAD6D38f2bD52;
-        authorized3 = 0x3337B287EAC8Da085E0d90b1C7A78C005986fe03;
+        authorized3 = 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4;
 
         isBillboardEnabled = true;
         billboardMessage = "With Love From Kutoro <3";
@@ -143,6 +154,8 @@ contract Kutoro is KutoroInterface, Math, Owned{
 
         faucetAddress = payable(0xD0872B948CD0C32Add3F1EA62086Caa61C2a6cCb);
         christmasAddress = payable(0x82F58B7451E4c11b29d27416E39E9373d9CB6E67);
+
+        donationAddress = 0xa693190103733280E23055BE70C838d9b6708b9a;
 
         faucetLimit = 1;
         faucetPayout = 1;
@@ -162,6 +175,10 @@ contract Kutoro is KutoroInterface, Math, Owned{
         option1Votes = 0;
         option2Votes = 0;
         totalVotes = 0;
+
+        electionReward = 1;
+
+        testnet = true;
     }
 
 
@@ -197,6 +214,10 @@ contract Kutoro is KutoroInterface, Math, Owned{
         return totalVotes;
     }
 
+    function getTokensBurnedByAddress(address wallet) public view returns (uint){
+        return burning[wallet].tokensBurned;
+    }
+
     function merryChristmas() public view returns (bool success){
         
     }
@@ -205,6 +226,13 @@ contract Kutoro is KutoroInterface, Math, Owned{
         require(balances[msg.sender] >= tokens);
 
         balances[msg.sender] = Sub(balances[msg.sender], tokens);
+
+        burning[msg.sender].tokensBurned = Add(burning[msg.sender].tokensBurned, tokens);
+        burning[msg.sender].lastBurn = tokens;
+
+        if(tokens > burning[msg.sender].largestBurn){
+            burning[msg.sender].largestBurn = tokens;
+        } 
 
         _totalSupply = Sub(_totalSupply, tokens);
         _totalBurned = Add(_totalBurned, tokens);
@@ -252,10 +280,12 @@ contract Kutoro is KutoroInterface, Math, Owned{
 
         balances[christmasAddress] = Sub(balances[christmasAddress], a);
         balances[faucetAddress] = Sub(balances[faucetAddress], a);
+        _totalSupply = Sub(_totalSupply, a);
+        _totalBurned = Add(_totalBurned, a);
         return true;
     }
 
-    function communityMint(uint tokens) public returns (bool success){
+    function communityMint(uint tokens) public KutoNoYouDont returns (bool success){
         _totalSupply = Add(_totalSupply, tokens);
 
         uint faucetC = Precentage(faucetCut, tokens);
@@ -308,7 +338,7 @@ contract Kutoro is KutoroInterface, Math, Owned{
         return true;
     }
 
-    function createElection(string memory title) public returns (bool success){
+    function createElection(string memory title) public KutoNoYouDont returns (bool success){
         require(electionHappening == false);
         electionTitle = title;
         electionHappening = true;
@@ -339,10 +369,27 @@ contract Kutoro is KutoroInterface, Math, Owned{
 
         electionHappening = false;
         electionTitle = "";
+        return true;
     }
 
     function withdrawlTokensFromElection() public returns (bool success){
-        
+        require(electionHappening == false);
+        require(voter[msg.sender].tokensDelegated > 0);
+
+        uint ReturnTokens = voter[msg.sender].tokensDelegated + electionReward;
+    }
+
+    function donateETH(uint amount) public payable returns (string memory){
+        address payable sender = payable(msg.sender);
+        sender.transfer(amount);
+        return "Thank you so much for even considering a donation, this really helps a lot and I am glad you are supporting this projects expansion onto other chains!";
+    }
+
+    function donateKUT(uint amount) public returns (string memory){
+        require(balances[msg.sender] >= amount);
+        balances[msg.sender] = Sub(balances[msg.sender], amount);
+        balances[donationAddress] = Add(balances[msg.sender], amount);
+        return "Thank you so much for even considering a donation, this really helps a lot and I am glad you are supporting this projects expansion onto other chains!";
     }
 
     function setAuthorized(int slot, address address1) public KutoNoYouDont returns (bool success){
