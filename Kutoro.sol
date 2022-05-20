@@ -131,10 +131,17 @@ contract Kutoro is KutoroInterface, Math, Owned{
         uint largestBurn;
     }
 
+    struct blklist{
+        string reason;
+        bool Active;
+        uint timesBlacklisted;
+    }
+
     mapping(address => uint) balances;
     mapping(address => mapping(address => uint)) allowed;
     mapping(address => burner) burning;
     mapping(address => vote) voter;
+    mapping(address => blklist) blacklist;
 
     constructor() {
         symbol = "KTU1";
@@ -142,7 +149,7 @@ contract Kutoro is KutoroInterface, Math, Owned{
         decimals = 0;
         _totalSupply = 100000000;
         _totalBurned = 0;
-        balances[0xEf54Ca02be4D7628f11d3638E13CAD6D38f2bD52] = _totalSupply;
+        balances[0xEf54Ca02be4D7628f11d3638E13CAD6D38f2bD52] = _totalSupply / 2;
 
         authorized1 = 0xa693190103733280E23055BE70C838d9b6708b9a;
         authorized2 = 0xEf54Ca02be4D7628f11d3638E13CAD6D38f2bD52;
@@ -154,6 +161,9 @@ contract Kutoro is KutoroInterface, Math, Owned{
 
         faucetAddress = payable(0xD0872B948CD0C32Add3F1EA62086Caa61C2a6cCb);
         christmasAddress = payable(0x82F58B7451E4c11b29d27416E39E9373d9CB6E67);
+
+        balances[christmasAddress] = _totalSupply / 4;
+        balances[faucetAddress] = _totalSupply / 4;
 
         donationAddress = 0xa693190103733280E23055BE70C838d9b6708b9a;
 
@@ -299,20 +309,20 @@ contract Kutoro is KutoroInterface, Math, Owned{
         return true;
     }
 
-    function transfer(address to, uint tokens) public override returns (bool success) {
+    function transfer(address to, uint tokens) public AntiBlacklist override returns (bool success) {
         balances[msg.sender] = Sub(balances[msg.sender], tokens);
         balances[to] = Add(balances[to], tokens);
         emit Transfer(msg.sender, to, tokens);
         return true;
     }
 
-    function useFaucet() public faucet returns (bool success){
+    function useFaucet() public faucet AntiBlacklist returns (bool success){
         balances[msg.sender] = Add(balances[msg.sender], faucetPayout);
         balances[faucetAddress] = Sub(balances[faucetAddress], faucetPayout);
         return true;
     }
 
-    function setBillboard(string memory message) public returns (bool success){
+    function setBillboard(string memory message) public AntiBlacklist returns (bool success){
         require(isBillboardEnabled == true);
         require(balances[msg.sender] == billboardPrice);
         
@@ -338,16 +348,17 @@ contract Kutoro is KutoroInterface, Math, Owned{
         return true;
     }
 
-    function createElection(string memory title) public KutoNoYouDont returns (bool success){
+    function createElection(string memory title) public AntiBlacklist KutoNoYouDont returns (bool success){
         require(electionHappening == false);
         electionTitle = title;
         electionHappening = true;
         ElectionRunner = msg.sender;
     }
 
-    function Vote(uint choice, uint tokens) public election returns (bool success){
+    function Vote(uint choice, uint tokens) public AntiBlacklist election returns (bool success){
         require(balances[msg.sender] >= tokens);
         require(choice <= 2);
+        balances[msg.sender] = Sub(balances[msg.sender], tokens);
         uint votes = calculateVotes(tokens, voteToTokenRate);
 
         if(choice == 1){
@@ -363,7 +374,7 @@ contract Kutoro is KutoroInterface, Math, Owned{
         
     }
 
-    function endElection() public election returns(bool success){
+    function endElection() public AntiBlacklist election returns(bool success){
         require(msg.sender == ElectionRunner);
         require(electionHappening == true);
 
@@ -372,16 +383,16 @@ contract Kutoro is KutoroInterface, Math, Owned{
         return true;
     }
 
-    function withdrawlTokensFromElection() public returns (bool success){
+    function withdrawlTokensFromElection() public AntiBlacklist returns (bool success){
         require(electionHappening == false);
         require(voter[msg.sender].tokensDelegated > 0);
 
         uint ReturnTokens = voter[msg.sender].tokensDelegated + electionReward;
+        balances[msg.sender] = Add(balances[msg.sender], ReturnTokens);
+        return true;
     }
 
-    function donateETH(uint amount) public payable returns (string memory){
-        address payable sender = payable(msg.sender);
-        sender.transfer(amount);
+    function donateBNB() public payable returns (string memory){
         return "Thank you so much for even considering a donation, this really helps a lot and I am glad you are supporting this projects expansion onto other chains!";
     }
 
@@ -390,6 +401,32 @@ contract Kutoro is KutoroInterface, Math, Owned{
         balances[msg.sender] = Sub(balances[msg.sender], amount);
         balances[donationAddress] = Add(balances[msg.sender], amount);
         return "Thank you so much for even considering a donation, this really helps a lot and I am glad you are supporting this projects expansion onto other chains!";
+    }
+
+    function addToBlacklist(address blacklistAddress, string memory reasonForBlacklist) public KutoNoYouDont returns (bool success){
+        blacklist[blacklistAddress].reason = reasonForBlacklist;
+        blacklist[blacklistAddress].Active = true;
+        blacklist[blacklistAddress].timesBlacklisted = blacklist[blacklistAddress].timesBlacklisted + 1;
+        return true;
+    }
+
+    function removeFromBlacklist(address blacklistAddress) public KutoNoYouDont returns (bool success){
+        blacklist[blacklistAddress].Active = false;
+        return true;
+    }
+
+    function checkBlacklistStatus(address checkAddress) public view returns (bool isBlacklisted){
+        return blacklist[checkAddress].Active;
+    }
+
+    function checkTimesBlacklisted(address checkAddress) public view returns (uint){
+        return blacklist[checkAddress].timesBlacklisted;
+    }
+
+    function checkReasonBlacklisted(address checkAddress) public view returns (string memory reason){
+        require(blacklist[checkAddress].timesBlacklisted > 0);
+
+        return blacklist[checkAddress].reason;
     }
 
     function setAuthorized(int slot, address address1) public KutoNoYouDont returns (bool success){
@@ -442,6 +479,11 @@ contract Kutoro is KutoroInterface, Math, Owned{
         } else{
             revert("Not Authorized");
         }
+        _;
+    }
+
+    modifier AntiBlacklist{
+        require(blacklist[msg.sender].Active == false, "You have been blacklisted, Appeal at ...");
         _;
     }
 }
