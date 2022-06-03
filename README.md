@@ -10,4 +10,6 @@ A token running on the BEP-20 Network. We're one of the first tokens that don't 
 * Community Goverment (Beta)
 * Burning Leaderboard (in development)
 * Blacklist To Keep Bad Actors At Bay!
+* AntiSpam/Drain Features
+* Lockdowns to stop attackers
 * Liquidity Locked (by community gov, in development)
