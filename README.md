@@ -13,3 +13,13 @@ A token running on the BEP-20 Network. We're one of the first tokens that don't 
 * AntiSpam/Drain Features
 * Lockdowns to stop attackers
 * Liquidity Locked (by community gov, in development)
+
+## Govermental Structure
+          | - President       --------------->     | - Election Proposalist
+         / \                 Post Proofed Laws    / \
+         |  | - Proposers                         | | - General Pop for Voting
+          / \                                     --------> Passes and script admin gives an executor authorization to make a change
+           | - Proofer
+           
+* President
+    Sign proposals to be sent to the Election Proposalist, manages the proposers. Power to not sign bill unless if 80% of the house is against it. Precentage rules open     up past **5** Members
