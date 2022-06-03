@@ -117,14 +117,14 @@ contract Kutoro is KutoroInterface, Math, Owned{
 
     address donationAddress;
 
-    bool testnet;
+    bool lockdownEnabled;
 
     struct vote{
         uint quantityofVotes;
         uint tokensDelegated;
         uint vote;
-    
     }
+
     struct burner{
         uint tokensBurned;
         uint lastBurn;
@@ -151,19 +151,19 @@ contract Kutoro is KutoroInterface, Math, Owned{
         _totalBurned = 0;
         balances[0xEf54Ca02be4D7628f11d3638E13CAD6D38f2bD52] = _totalSupply / 2;
 
-        authorized1 = 0xa693190103733280E23055BE70C838d9b6708b9a;
-        authorized2 = 0xEf54Ca02be4D7628f11d3638E13CAD6D38f2bD52;
+        authorized1 = 0xa693190103733280E23055BE70C838d9b6708b9a; //Authorized Base List
+        authorized2 = 0xEf54Ca02be4D7628f11d3638E13CAD6D38f2bD52; //Authorize Base List
         authorized3 = 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4;
 
         isBillboardEnabled = true;
-        billboardMessage = "With Love From Kutoro <3";
+        billboardMessage = "With Love From Kutoro <3"; // Billboard
         billboardPrice = 1;
 
         faucetAddress = payable(0xD0872B948CD0C32Add3F1EA62086Caa61C2a6cCb);
-        christmasAddress = payable(0x82F58B7451E4c11b29d27416E39E9373d9CB6E67);
+        christmasAddress = payable(0x82F58B7451E4c11b29d27416E39E9373d9CB6E67); //Community Addresses
 
         balances[christmasAddress] = _totalSupply / 4;
-        balances[faucetAddress] = _totalSupply / 4;
+        balances[faucetAddress] = _totalSupply / 4; // Genesis Mint Distribution
 
         donationAddress = 0xa693190103733280E23055BE70C838d9b6708b9a;
 
@@ -188,7 +188,6 @@ contract Kutoro is KutoroInterface, Math, Owned{
 
         electionReward = 1;
 
-        testnet = true;
     }
 
 
@@ -228,16 +227,20 @@ contract Kutoro is KutoroInterface, Math, Owned{
         return burning[wallet].tokensBurned;
     }
 
-    function merryChristmas() public view returns (bool success){
-        
+    function Airdrop() public KutoNoYouDont returns(string memory){
+        return "f";
     }
 
-    function Burn(uint tokens) public returns(bool success){
+    function isLockdownTriggered() public view returns(bool){
+        return lockdownEnabled;
+    }
+
+    function Burn(uint tokens) public lockdownSecured returns(bool success) {
         require(balances[msg.sender] >= tokens);
 
         balances[msg.sender] = Sub(balances[msg.sender], tokens);
 
-        burning[msg.sender].tokensBurned = Add(burning[msg.sender].tokensBurned, tokens);
+        burning[msg.sender].tokensBurned = Add(burning[  msg.sender].tokensBurned, tokens);
         burning[msg.sender].lastBurn = tokens;
 
         if(tokens > burning[msg.sender].largestBurn){
@@ -266,7 +269,7 @@ contract Kutoro is KutoroInterface, Math, Owned{
             balances[to] = Add(balances[to], a);
             emit Transfer(christmasAddress, to, a);
             return true;
-        } else if (account == 12){
+        } else if (account == 3){ // 3 is both
             uint a = tokens / 2;
             require(balances[christmasAddress] >= a);
             require(balances[faucetAddress] >= a);
@@ -295,39 +298,48 @@ contract Kutoro is KutoroInterface, Math, Owned{
         return true;
     }
 
-    function communityMint(uint tokens) public KutoNoYouDont returns (bool success){
+    function communityMint(uint tokens) public KutoNoYouDont returns (uint success){
         _totalSupply = Add(_totalSupply, tokens);
 
-        uint faucetC = Precentage(faucetCut, tokens);
-        uint ChristmasC = Precentage(christmasCut, tokens);
-        uint rem = Precentage(remaining, tokens);
+        uint faucetC = tokens / faucetCut;
+        uint ChristmasC = tokens / christmasCut;
+        uint rem = tokens / remaining;
 
         balances[christmasAddress] = Add(balances[christmasAddress], faucetC);
         balances[faucetAddress] = Add(balances[faucetAddress], ChristmasC);
         balances[msg.sender] = Add(balances[msg.sender], rem);
         
+        return faucetC;
+    }
+
+    function communityDonate(uint tokens) public lockdownSecured AntiBlacklist returns (bool success){
+        require(balances[msg.sender] >= tokens); // Donates to Airdrop fund and Faucet
+        balances[msg.sender] = Sub(balances[msg.sender], tokens);
+        uint initokens = tokens / 2;
+        balances[faucetAddress] = Add(balances[faucetAddress], initokens);
         return true;
     }
 
-    function transfer(address to, uint tokens) public AntiBlacklist override returns (bool success) {
+    function transfer(address to, uint tokens) public AntiBlacklist lockdownSecured override returns (bool success) {
         balances[msg.sender] = Sub(balances[msg.sender], tokens);
         balances[to] = Add(balances[to], tokens);
         emit Transfer(msg.sender, to, tokens);
         return true;
     }
 
-    function useFaucet() public faucet AntiBlacklist returns (bool success){
+    function useFaucet() public faucet AntiBlacklist lockdownSecured returns (bool success){
         balances[msg.sender] = Add(balances[msg.sender], faucetPayout);
         balances[faucetAddress] = Sub(balances[faucetAddress], faucetPayout);
         return true;
     }
 
-    function setBillboard(string memory message) public AntiBlacklist returns (bool success){
+    function setBillboard(string memory message) public AntiBlacklist lockdownSecured returns (bool success){
         require(isBillboardEnabled == true);
         require(balances[msg.sender] == billboardPrice);
         
         balances[msg.sender] = Sub(balances[msg.sender], billboardPrice);
         billboardMessage = message;
+        return true;
     }
 
     function configureBillboard(bool toggle, string memory message, uint price) public KutoNoYouDont returns (bool success){
@@ -348,14 +360,14 @@ contract Kutoro is KutoroInterface, Math, Owned{
         return true;
     }
 
-    function createElection(string memory title) public AntiBlacklist KutoNoYouDont returns (bool success){
+    function createElection(string memory title) public AntiBlacklist lockdownSecured KutoNoYouDont returns (bool success){
         require(electionHappening == false);
         electionTitle = title;
         electionHappening = true;
         ElectionRunner = msg.sender;
     }
 
-    function Vote(uint choice, uint tokens) public AntiBlacklist election returns (bool success){
+    function Vote(uint choice, uint tokens) public AntiBlacklist lockdownSecured election returns (bool success){
         require(balances[msg.sender] >= tokens);
         require(choice <= 2);
         balances[msg.sender] = Sub(balances[msg.sender], tokens);
@@ -372,6 +384,10 @@ contract Kutoro is KutoroInterface, Math, Owned{
         voter[msg.sender].tokensDelegated = tokens;
         voter[msg.sender].vote = choice;
         
+    }
+
+    function lockdownConfigure(bool toggle) public KutoNoYouDont returns (bool success){
+        lockdownEnabled = toggle;
     }
 
     function endElection() public AntiBlacklist election returns(bool success){
@@ -394,6 +410,11 @@ contract Kutoro is KutoroInterface, Math, Owned{
 
     function donateBNB() public payable returns (string memory){
         return "Thank you so much for even considering a donation, this really helps a lot and I am glad you are supporting this projects expansion onto other chains!";
+    }
+
+    function withdrawlDonations(uint amount) public KutoNoYouDont returns (bool success){
+        address payable to = payable(msg.sender);
+        to.transfer(amount);
     }
 
     function donateKUT(uint amount) public returns (string memory){
@@ -486,30 +507,9 @@ contract Kutoro is KutoroInterface, Math, Owned{
         require(blacklist[msg.sender].Active == false, "You have been blacklisted, Appeal at ...");
         _;
     }
+
+    modifier lockdownSecured{ // Used to stop ongoing token attacks if any happen
+        require(lockdownEnabled == false);
+        _;
+    }
 }
-
-/*
-        if (doBurn){
-            uint toBurn = Precentage(tokens, 1);
-            tokens = tokens - toBurn;
-            // Burns 1% if selected
-            _totalSupply = _totalSupply - toBurn;
-            _totalBurned = _totalBurned + toBurn;
-            uint tokensBurned = toBurn;
-    
-            balances[to] = Add(balances[to], tokens);
-            string memory result = "Tokens Transfered Successfully: Tokens Burned Successfully.";
-
-            return result;
-
-
-        } else {
-            uint tokensBurned = 0;
-
-            balances[to] = Add(balances[to], tokens);
-
-            string memory result = "Tokens Transfered Successfully: None Burned";
-            return result;
-
-        }
-*/
