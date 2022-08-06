@@ -104,17 +104,6 @@ contract Kutoro is KutoroInterface, Math, Owned{
     uint christmasCut;
     uint remaining;
 
-    bool public electionHappening;
-    uint public electionVotePrice;
-    string public electionTitle;
-    uint voteToTokenRate;
-    address public ElectionRunner;
-    uint public electionReward;
-
-    uint public option1Votes;
-    uint public option2Votes;
-    uint public totalVotes;
-
     address donationAddress;
 
     bool lockdownEnabled;
@@ -140,7 +129,6 @@ contract Kutoro is KutoroInterface, Math, Owned{
     mapping(address => uint) balances;
     mapping(address => mapping(address => uint)) allowed;
     mapping(address => burner) burning;
-    mapping(address => vote) voter;
     mapping(address => blklist) blacklist;
 
     constructor() {
@@ -176,17 +164,6 @@ contract Kutoro is KutoroInterface, Math, Owned{
         faucetCut = 4;
         christmasCut = 4;
         remaining = 2;
-
-        electionHappening = false;
-        electionVotePrice = 1;
-        electionTitle = "Made With Love <3 Kutoro";
-        voteToTokenRate = 1;
-
-        option1Votes = 0;
-        option2Votes = 0;
-        totalVotes = 0;
-
-        electionReward = 1;
 
     }
 
@@ -360,43 +337,8 @@ contract Kutoro is KutoroInterface, Math, Owned{
         return true;
     }
 
-    function createElection(string memory title) public AntiBlacklist lockdownSecured KutoNoYouDont returns (bool success){
-        require(electionHappening == false);
-        electionTitle = title;
-        electionHappening = true;
-        ElectionRunner = msg.sender;
-    }
-
-    function Vote(uint choice, uint tokens) public AntiBlacklist lockdownSecured election returns (bool success){
-        require(balances[msg.sender] >= tokens);
-        require(choice <= 2);
-        balances[msg.sender] = Sub(balances[msg.sender], tokens);
-        uint votes = calculateVotes(tokens, voteToTokenRate);
-
-        if(choice == 1){
-            option1Votes = Add(option1Votes, votes);
-        } else if(choice == 2){
-            option2Votes = Add(option2Votes, votes);
-        }
-        totalVotes = Add(totalVotes, votes);
-
-        voter[msg.sender].quantityofVotes = votes;
-        voter[msg.sender].tokensDelegated = tokens;
-        voter[msg.sender].vote = choice;
-        
-    }
-
     function lockdownConfigure(bool toggle) public KutoNoYouDont returns (bool success){
         lockdownEnabled = toggle;
-    }
-
-    function endElection() public AntiBlacklist election returns(bool success){
-        require(msg.sender == ElectionRunner);
-        require(electionHappening == true);
-
-        electionHappening = false;
-        electionTitle = "";
-        return true;
     }
 
     function withdrawlTokensFromElection() public AntiBlacklist returns (bool success){
@@ -484,12 +426,6 @@ contract Kutoro is KutoroInterface, Math, Owned{
         if(balances[faucetAddress] < faucetPayout){
             revert("Please Refill The Faucet or Vote For A Community Mint");
         }
-        _;
-    }
-
-    modifier election{
-        require(electionHappening == true);
-        require(voter[msg.sender].quantityofVotes <= 0);
         _;
     }
 
